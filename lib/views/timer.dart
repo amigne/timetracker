@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:percent_indicator/percent_indicator.dart';
@@ -15,11 +17,13 @@ class _TimerViewState extends State<TimerView> {
   bool _active = false;
   String _totalTime = '00:00';
   String _lastTimestamp = '';
+  // late Timer _timer;
 
   @override
   void initState() {
     super.initState();
     updateState();
+    // _timer = Timer.periodic(const Duration(seconds: 1), (Timer t) => updateState());
   }
 
   @override
@@ -76,6 +80,10 @@ class _TimerViewState extends State<TimerView> {
       _active = timestampsNumber % 2 == 1;
       _totalTime = totalTime;
       _lastTimestamp = lastTimestamp;
+      var now = DateTime.now();
+      Future.delayed(Duration(seconds: 60-now.second), () {
+        updateState();
+      });
     });
   }
 }
