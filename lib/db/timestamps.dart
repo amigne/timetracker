@@ -6,7 +6,9 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
-class Timestamp {
+import 'timestamp.dart';
+
+/* class Timestamp {
   final int id;
   final String date;
   final String time;
@@ -33,6 +35,7 @@ class Timestamp {
     };
   }
 }
+*/
 
 dynamic timestampDatabase;
 
@@ -72,7 +75,8 @@ void _createTableTimestampV1(Batch batch) {
       'id INTEGER PRIMARY KEY AUTOINCREMENT, '
       'date TEXT, '
       'time TEXT, '
-      'inputType INTEGER, '
+      'timeZone TEXT, '
+      'origin INTEGER, '
       'deleted INTEGER'
       ')');
 }
@@ -88,8 +92,38 @@ void _createTableSettingsV1(Batch batch) {
 
 class AlreadySameTimestampException implements Exception {}
 
-Future<void> addTimestamp(
-    {String? date, String? time, int input = Timestamp.inputTypeClick}) async {
+Future<void> addTimestamp({required Timestamp timestamp}) async {
+  var database = await getTimestampDatabase();
+
+  // First query: Ensure there is no timestamp at the same date and time
+  var query =
+      'SELECT time FROM Timestamps WHERE date=? AND time=? ORDER BY time DESC';
+  var queryValues = [timestamp.date, timestamp.time];
+  var result = await database.rawQuery(query, queryValues);
+
+  if (result.length > 0) {
+    throw AlreadySameTimestampException();
+  }
+
+  await database.insert('Timestamps', mapForDB(timestamp.toMap()));
+}
+
+Map<String, dynamic> mapForDB(Map<String, dynamic> map) {
+  Map<String, dynamic> result = {};
+
+  for (var key in map.keys) {
+    if (map[key] is bool) {
+      result[key] = (map[key] ? 1 : 0);
+      continue;
+    }
+    result[key] = map[key];
+  }
+
+  return result;
+}
+
+Future<void> addTimestamp333(
+    {String? date, String? time, int input = Timestamp.inputClick}) async {
   DateTime now = DateTime.now();
 
   date ??= _formatDate(now.year, now.month, now.day);
@@ -99,7 +133,8 @@ Future<void> addTimestamp(
 
   // Ensure there is now already a similar timestamp
   var result = await database.rawQuery(
-      'SELECT time FROM Timestamps WHERE date=? AND time=? AND deleted=? ORDER BY time DESC', [date, time, 0]);
+      'SELECT time FROM Timestamps WHERE date=? AND time=? AND deleted=? ORDER BY time DESC',
+      [date, time, 0]);
   if (result.length > 0) {
     throw AlreadySameTimestampException();
   }
@@ -119,9 +154,9 @@ Future<int> getTodayActiveTimestamps() async {
 }
 
 String _formatDate(int year, int month, int day) =>
-    '$year-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
+    '${year.toString().padLeft(4, '0')}${month.toString().padLeft(2, '0')}${day.toString().padLeft(2, '0')}';
 String _formatTime(int hour, int minute) =>
-    '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+    'T${hour.toString().padLeft(2, '0')}${minute.toString().padLeft(2, '0')}';
 
 Future<String> getLastTimestamp() async {
   DateTime now = DateTime.now();
@@ -129,7 +164,8 @@ Future<String> getLastTimestamp() async {
 
   var database = await getTimestampDatabase();
   var result = await database.rawQuery(
-      'SELECT time FROM Timestamps WHERE date=? AND deleted=? ORDER BY time DESC', [date, 0]);
+      'SELECT time FROM Timestamps WHERE date=? AND deleted=? ORDER BY time DESC',
+      [date, 0]);
 
   return result.length > 0 ? result[0]['time'] : '';
 }
@@ -138,12 +174,13 @@ Future<String> getTotalTime([int? year, int? month, int? day]) async {
   DateTime now = DateTime.now();
   year = year ?? now.year;
   month = month ?? now.month;
-  day =  day ?? now.day;
+  day = day ?? now.day;
   var date = _formatDate(year!, month!, day!);
 
   var database = await getTimestampDatabase();
   var result = await database.rawQuery(
-      'SELECT time FROM Timestamps WHERE date=? AND deleted=? ORDER BY time DESC', [date, 0]);
+      'SELECT time FROM Timestamps WHERE date=? AND deleted=? ORDER BY time DESC',
+      [date, 0]);
   var count = result.length;
   if (count <= 0) {
     return '0:00';
@@ -159,7 +196,7 @@ Future<String> getTotalTime([int? year, int? month, int? day]) async {
   var totalTime = 0.0;
   for (int i = 0; i < count; i += 2) {
     var time1 = getTimeStringToDouble(times[i]);
-    var time2 = getTimeStringToDouble(times[i+1]);
+    var time2 = getTimeStringToDouble(times[i + 1]);
     totalTime += (time1 - time2);
   }
 
@@ -167,9 +204,8 @@ Future<String> getTotalTime([int? year, int? month, int? day]) async {
 }
 
 double getTimeStringToDouble(String time) {
-  var splitted = time.split(':');
-  var hour = int.parse(splitted[0]);
-  var minutes = int.parse(splitted[1]);
+  var hour = int.parse(time.substring(1, 3));
+  var minutes = int.parse(time.substring(3, 5));
 
   return hour + (minutes / 60);
 }

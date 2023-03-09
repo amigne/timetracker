@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:percent_indicator/percent_indicator.dart';
+import 'package:timetracker/db/timestamp.dart';
 
 import '../db/timestamps.dart';
 
@@ -51,7 +52,8 @@ class _TimerViewState extends State<TimerView> {
 
   tapMaker(context) {
     return () async {
-      await addTimestamp()
+      var timestamp = Timestamp.fromDatetime(dateTime: DateTime.now());
+      await addTimestamp(timestamp: timestamp)
           .then((_) { updateState(); })
           .catchError((error, stackTrace) {
         showDialog<String>(
