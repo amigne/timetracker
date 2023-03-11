@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart';
 
-import '../db/timestamps.dart';
-import 'timer.dart';
+import 'timer_page.dart';
 
 class TimeTrackerHome extends StatefulWidget {
   const TimeTrackerHome({Key? key}) : super(key: key);
@@ -14,20 +12,22 @@ class TimeTrackerHome extends StatefulWidget {
 class _TimeTrackerHomeState extends State<TimeTrackerHome> {
   late PageController _pageController;
   int _page = 0;
-  late dynamic _database;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Center(
-            child: Text('Time Tracker')
-        ),
+        title: const Center(child: Text('Time Tracker')),
       ),
       body: PageView(
         controller: _pageController,
-        children: <Widget>[TimerView(), Placeholder(), Placeholder(),],
         onPageChanged: _onPageChanged,
+        children: const <Widget>[
+          TimerPage(),
+          Placeholder(),
+          Placeholder(),
+          Placeholder(),
+        ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         //backgroundColor: Theme.of(context).primaryColor,
@@ -39,8 +39,6 @@ class _TimeTrackerHomeState extends State<TimeTrackerHome> {
         onTap: _navigationTapped,
         currentIndex: _page,
       ),
-
-
     );
   }
 
@@ -48,11 +46,7 @@ class _TimeTrackerHomeState extends State<TimeTrackerHome> {
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 0);
-    _database = getTimestampDatabase();
   }
-
-
-
 
   @override
   void dispose() {
@@ -66,9 +60,7 @@ class _TimeTrackerHomeState extends State<TimeTrackerHome> {
 
   void _onPageChanged(int page) => setState(() => _page = page);
 
-
-  static const bottomNavigationBarItems =
-  <BottomNavigationBarItem>[
+  static const bottomNavigationBarItems = <BottomNavigationBarItem>[
     BottomNavigationBarItem(
       icon: Icon(Icons.timer),
       label: 'Timer',
@@ -81,6 +73,9 @@ class _TimeTrackerHomeState extends State<TimeTrackerHome> {
       icon: Icon(Icons.calendar_month),
       label: 'Reports',
     ),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.settings),
+      label: 'Settings',
+    ),
   ];
-
 }

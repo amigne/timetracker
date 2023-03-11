@@ -1,41 +1,13 @@
 import 'dart:io';
 import 'dart:core';
 
-import 'package:sqflite/utils/utils.dart';
+import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
+import 'package:timezone/timezone.dart' as tz;
 
+import '../settings/settings.dart';
 import 'timestamp.dart';
-
-/* class Timestamp {
-  final int id;
-  final String date;
-  final String time;
-  final int inputType;
-  final bool deleted;
-
-  static const inputTypeClick = 0;
-  static const inputTypeManual = 1;
-
-  Timestamp(
-      {required this.id,
-      required this.date,
-      required this.time,
-      this.inputType = inputTypeClick,
-      this.deleted = false});
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'date': date,
-      'time': time,
-      'inputType': inputType,
-      'deleted': deleted,
-    };
-  }
-}
-*/
 
 dynamic timestampDatabase;
 
@@ -66,6 +38,7 @@ void _onCreateTimestampDatabase(db, version) async {
   var batch = db.batch();
   _createTableTimestampV1(batch);
   _createTableSettingsV1(batch);
+  _fillTableSettingsV1(batch);
   await batch.commit();
 }
 
@@ -73,9 +46,7 @@ void _createTableTimestampV1(Batch batch) {
   batch.execute('DROP TABLE IF EXISTS Timestamps');
   batch.execute('CREATE TABLE Timestamps ('
       'id INTEGER PRIMARY KEY AUTOINCREMENT, '
-      'date TEXT, '
-      'time TEXT, '
-      'timeZone TEXT, '
+      'dateTime INT, '
       'origin INTEGER, '
       'deleted INTEGER'
       ')');
@@ -90,117 +61,118 @@ void _createTableSettingsV1(Batch batch) {
       ')');
 }
 
+void _fillTableSettingsV1(Batch batch) {
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("general.timeZone", "Europe/Zurich")');
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("duration.mondays", "492")');
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("duration.tuesdays", "492")');
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("duration.wednesdays", "492")');
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("duration.thursdays", "492")');
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("duration.fridays", "492")');
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("duration.saturdays", "0")');
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("duration.sundays", "0")');
+}
+
 class AlreadySameTimestampException implements Exception {}
 
 Future<void> addTimestamp({required Timestamp timestamp}) async {
   var database = await getTimestampDatabase();
 
-  // First query: Ensure there is no timestamp at the same date and time
-  var query =
-      'SELECT time FROM Timestamps WHERE date=? AND time=? ORDER BY time DESC';
-  var queryValues = [timestamp.date, timestamp.time];
+  // First query: Ensure there is no timestamp at the same instant
+  var query = 'SELECT dateTime FROM Timestamps WHERE dateTime=?';
+  var queryValues = [
+    timestamp.millisecondsSinceEpoch,
+  ];
   var result = await database.rawQuery(query, queryValues);
 
   if (result.length > 0) {
     throw AlreadySameTimestampException();
   }
 
-  await database.insert('Timestamps', mapForDB(timestamp.toMap()));
+  await database.insert('Timestamps', timestamp.toMapForDB());
 }
 
-Map<String, dynamic> mapForDB(Map<String, dynamic> map) {
-  Map<String, dynamic> result = {};
+Future<List> listTimestampsSingleDay(int year, int month, int day,
+    {bool deleted = false}) async {
+  var settings = await Settings.instance();
+  var timeZone = settings.settings['general.timeZone'] ?? 'UTC';
 
-  for (var key in map.keys) {
-    if (map[key] is bool) {
-      result[key] = (map[key] ? 1 : 0);
-      continue;
-    }
-    result[key] = map[key];
-  }
-
-  return result;
-}
-
-Future<void> addTimestamp333(
-    {String? date, String? time, int input = Timestamp.inputClick}) async {
-  DateTime now = DateTime.now();
-
-  date ??= _formatDate(now.year, now.month, now.day);
-  time ??= _formatTime(now.hour, now.minute);
+  var appTz = tz.getLocation(timeZone);
+  var beginningDay = tz.TZDateTime(appTz, year, month, day).toUtc();
+  var endDay = tz.TZDateTime(appTz, year, month, day + 1).toUtc();
 
   var database = await getTimestampDatabase();
 
-  // Ensure there is now already a similar timestamp
-  var result = await database.rawQuery(
-      'SELECT time FROM Timestamps WHERE date=? AND time=? AND deleted=? ORDER BY time DESC',
-      [date, time, 0]);
-  if (result.length > 0) {
-    throw AlreadySameTimestampException();
-  }
-
-  await database.insert('Timestamps',
-      {'date': date, 'time': time, 'inputType': input, 'deleted': 0});
+  var query =
+      'SELECT * FROM Timestamps WHERE dateTime>=? AND dateTime <? AND deleted=? ORDER BY dateTime DESC';
+  var values = [
+    beginningDay.millisecondsSinceEpoch,
+    endDay.millisecondsSinceEpoch,
+    deleted ? 1 : 0
+  ];
+  return await database.rawQuery(query, values);
 }
 
-Future<int> getTodayActiveTimestamps() async {
-  DateTime now = DateTime.now();
-  var date = _formatDate(now.year, now.month, now.day);
+Future<List> listTodayActiveTimestamps() async {
+  var settings = await Settings.instance();
+  var timeZone = settings.settings['general.timeZone'] ?? 'UTC';
 
-  var database = await getTimestampDatabase();
-  return firstIntValue(await database.rawQuery(
-      'SELECT COUNT(*) FROM Timestamps WHERE date=? AND deleted=?',
-      [date, 0]))!;
+  var appTz = tz.getLocation(timeZone);
+  var now = tz.TZDateTime.from(DateTime.now(), appTz);
+
+  return await listTimestampsSingleDay(now.year, now.month, now.day,
+      deleted: false);
 }
 
-String _formatDate(int year, int month, int day) =>
-    '${year.toString().padLeft(4, '0')}${month.toString().padLeft(2, '0')}${day.toString().padLeft(2, '0')}';
+Future<int> countTodayActiveTimestamps() async {
+  return (await listTodayActiveTimestamps()).length;
+}
+
 String _formatTime(int hour, int minute) =>
     'T${hour.toString().padLeft(2, '0')}${minute.toString().padLeft(2, '0')}';
 
-Future<String> getLastTimestamp() async {
-  DateTime now = DateTime.now();
-  var date = _formatDate(now.year, now.month, now.day);
-
-  var database = await getTimestampDatabase();
-  var result = await database.rawQuery(
-      'SELECT time FROM Timestamps WHERE date=? AND deleted=? ORDER BY time DESC',
-      [date, 0]);
-
-  return result.length > 0 ? result[0]['time'] : '';
+Future<int> getLastTimestamp() async {
+  var todayTimestamps = await listTodayActiveTimestamps();
+  return todayTimestamps.isNotEmpty ? todayTimestamps[0]['dateTime'] : 0;
 }
 
-Future<String> getTotalTime([int? year, int? month, int? day]) async {
-  DateTime now = DateTime.now();
+Future<Duration> getTotalDuration([int? year, int? month, int? day]) async {
+  var settings = await Settings.instance();
+  var timeZone = settings.settings['general.timeZone'] ?? 'UTC';
+
+  var appTz = tz.getLocation(timeZone);
+  var now = tz.TZDateTime.from(DateTime.now(), appTz);
+
   year = year ?? now.year;
   month = month ?? now.month;
   day = day ?? now.day;
-  var date = _formatDate(year!, month!, day!);
 
-  var database = await getTimestampDatabase();
-  var result = await database.rawQuery(
-      'SELECT time FROM Timestamps WHERE date=? AND deleted=? ORDER BY time DESC',
-      [date, 0]);
-  var count = result.length;
+  var resultSet = await listTimestampsSingleDay(year, month, day);
+  var count = resultSet.length;
   if (count <= 0) {
-    return '0:00';
+    return const Duration();
   }
 
-  var times = result.map((dict) => dict['time']).toList();
+  List<int> times = resultSet.map((dict) => dict['dateTime'] as int).toList();
   if (count % 2 == 1) {
     // Add current time to have an even number of records
-    var time = _formatTime(now.hour, now.minute);
+    var time = now.millisecondsSinceEpoch;
     times.insert(0, time);
   }
 
-  var totalTime = 0.0;
+  int totalTime = 0;
   for (int i = 0; i < count; i += 2) {
-    var time1 = getTimeStringToDouble(times[i]);
-    var time2 = getTimeStringToDouble(times[i + 1]);
-    totalTime += (time1 - time2);
+    totalTime += (times[i] - times[i + 1]);
   }
 
-  return getTimeDoubleToString(totalTime);
+  return Duration(milliseconds: totalTime);
 }
 
 double getTimeStringToDouble(String time) {
@@ -215,4 +187,30 @@ String getTimeDoubleToString(double time) {
   var minutes = (time - hour) * 60;
 
   return _formatTime(hour, minutes.round());
+}
+
+String displayDuration(Duration duration) {
+  var hours = (duration.inHours % 24)
+      .toString()
+      .padLeft(2, '0'); // In case we exceed 24 hours...
+  var minutes = (duration.inMinutes % 60).toString().padLeft(2, '0');
+
+  return '$hours:$minutes';
+}
+
+Future<String> displayTime(int millisecondsSinceEpoch) async {
+  var settings = await Settings.instance();
+  var timeZone = settings.settings['general.timeZone'] ?? 'UTC';
+
+  var appTz = tz.getLocation(timeZone);
+  var appDateTime = tz.TZDateTime.from(
+      DateTime.fromMillisecondsSinceEpoch(millisecondsSinceEpoch, isUtc: true),
+      appTz);
+
+  var hours = appDateTime.hour
+      .toString()
+      .padLeft(2, '0'); // In case we exceed 24 hours...
+  var minutes = appDateTime.minute.toString().padLeft(2, '0');
+
+  return '$hours:$minutes';
 }
