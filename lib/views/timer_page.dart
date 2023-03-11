@@ -16,7 +16,6 @@ class TimerPage extends StatefulWidget {
 }
 
 class _TimerPageState extends State<TimerPage> {
-  bool _active = false;
   String _totalTime = '00:00';
   String _lastTimestamp = '';
   double _percent = 0.0;
@@ -117,7 +116,6 @@ class _TimerPageState extends State<TimerPage> {
     }
 
     setState(() {
-      _active = active;
       _totalTime = displayDuration(totalTime);
       _lastTimestamp = lastTimestamp;
       _percent = percent;
