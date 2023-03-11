@@ -13,6 +13,8 @@ Future<void> init() async {
 }
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
   await init();
 
   runApp(const TimeTrackerApp());

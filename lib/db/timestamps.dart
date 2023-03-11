@@ -19,8 +19,8 @@ dynamic openTimestampDatabase({String filename = 'timestamps.db'}) async {
   if (timestampDatabase == null) {
     if (Platform.isWindows || Platform.isLinux) {
       sqfliteFfiInit();
+      databaseFactory = databaseFactoryFfi;
     }
-    databaseFactory = databaseFactoryFfi;
 
     timestampDatabase = await databaseFactory.openDatabase(
       join(await databaseFactory.getDatabasesPath(), filename),
@@ -78,6 +78,20 @@ void _fillTableSettingsV1(Batch batch) {
       'INSERT INTO Settings (key, value) VALUES ("duration.saturdays", "0")');
   batch.execute(
       'INSERT INTO Settings (key, value) VALUES ("duration.sundays", "0")');
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("duration.max.mondays", "660")');
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("duration.max.tuesdays", "660")');
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("duration.max.wednesdays", "660")');
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("duration.max.thursdays", "660")');
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("duration.max.fridays", "660")');
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("duration.max.saturdays", "0")');
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("duration.max.sundays", "0")');
 }
 
 class AlreadySameTimestampException implements Exception {}
@@ -213,4 +227,24 @@ Future<String> displayTime(int millisecondsSinceEpoch) async {
   var minutes = appDateTime.minute.toString().padLeft(2, '0');
 
   return '$hours:$minutes';
+}
+
+Future<String> getTodayWeekDay() async {
+  Map<int, String> weekDayString = {
+    DateTime.monday: 'monday',
+    DateTime.tuesday: 'tuesday',
+    DateTime.wednesday: 'wednesday',
+    DateTime.thursday: 'thursday',
+    DateTime.friday: 'friday',
+    DateTime.saturday: 'saturday',
+    DateTime.sunday: 'sunday',
+  };
+
+  var settings = await Settings.instance();
+  var timeZone = settings.settings['general.timeZone'] ?? 'UTC';
+
+  var appTz = tz.getLocation(timeZone);
+  var appDateTime = tz.TZDateTime.from(DateTime.now().toUtc(), appTz);
+
+  return weekDayString[appDateTime.weekday] ?? 'unknown';
 }

@@ -1,4 +1,4 @@
-package com.example.timetracker
+package ovh.gauteron.timetracker
 
 import io.flutter.embedding.android.FlutterActivity
 
