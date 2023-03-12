@@ -35,7 +35,6 @@ class _ReportPageState extends State<ReportPage> {
             );
           }).toList(),
           onChanged: (String? value) {
-            // This is called when the user selects an item.
             setState(() {
               _dropdownValue = value!;
             });

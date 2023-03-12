@@ -130,6 +130,7 @@ class _TimerPageState extends State<TimerPage> {
     });
   }
 
+  // TODO: Move method to dedicated class
   Future<int> getExpectedWorkDuration() async {
     var weekDay = await getWeekDayString();
 
@@ -137,6 +138,7 @@ class _TimerPageState extends State<TimerPage> {
     return int.parse(settings.settings['duration.${weekDay}s'] ?? '0');
   }
 
+  // TODO: Move method to dedicated class
   Future<int> getMaximumWorkDuration() async {
     var weekDay = await getWeekDayString();
 

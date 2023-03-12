@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../db/timestamps.dart';
-import '../reports/share_excel.dart';
 import '../settings/backup.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -12,11 +10,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  /* bool _set = false;
-  List<String> _dropdownList = [];
-  String _dropdownValue = '';
-   */
-
   @override
   void initState() {
     super.initState();
@@ -35,21 +28,4 @@ class _SettingsPageState extends State<SettingsPage> {
       ],
     );
   }
-
-  /*
-  void updateState() async {
-    if (!mounted) return;
-
-    if (!_set) {
-      var dropdownList = await getListOfMonths();
-      var dropdownValue = dropdownList[0];
-
-      _set = true;
-      setState(() {
-        _dropdownList = dropdownList;
-        _dropdownValue = dropdownValue;
-      });
-    }
-  }
-   */
 }

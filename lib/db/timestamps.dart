@@ -9,6 +9,8 @@ import 'package:timezone/timezone.dart' as tz;
 import '../settings/settings.dart';
 import 'timestamp.dart';
 
+// TODO: THE COMPLETE CONTENT OF THIS FILE MUST BE DEEPLY REFACTORED
+
 dynamic timestampDatabase;
 
 dynamic getTimestampDatabase() async {
