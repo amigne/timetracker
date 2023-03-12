@@ -25,7 +25,7 @@ class _ReportPageState extends State<ReportPage> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        const Text('Période'),
+        const Text('Period'),
         DropdownButton<String>(
           value: _dropdownValue,
           items: _dropdownList.map<DropdownMenuItem<String>>((String value) {
@@ -43,7 +43,7 @@ class _ReportPageState extends State<ReportPage> {
         ),
         ElevatedButton(
           onPressed: () => shareExcel(_dropdownValue),
-          child: Text('Share Excel'),
+          child: const Text('Share Excel'),
         )
       ],
     );

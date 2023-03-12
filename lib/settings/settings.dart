@@ -21,4 +21,12 @@ class Settings {
 
     return _singleton!;
   }
+
+  static Future<List> listAllSettings() async {
+    var database = await getTimestampDatabase();
+
+    var query = 'SELECT * FROM Settings';
+    var values = [];
+    return await database.rawQuery(query, values);
+  }
 }

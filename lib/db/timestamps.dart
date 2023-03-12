@@ -46,7 +46,7 @@ void _createTableTimestampV1(Batch batch) {
   batch.execute('DROP TABLE IF EXISTS Timestamps');
   batch.execute('CREATE TABLE Timestamps ('
       'id INTEGER PRIMARY KEY AUTOINCREMENT, '
-      'dateTime INT, '
+      'dateTime INTEGER, '
       'origin INTEGER, '
       'deleted INTEGER'
       ')');
@@ -111,6 +111,14 @@ Future<void> addTimestamp({required Timestamp timestamp}) async {
   }
 
   await database.insert('Timestamps', timestamp.toMapForDB());
+}
+
+Future<List> listAllTimestampsSingleDay() async {
+  var database = await getTimestampDatabase();
+
+  var query = 'SELECT * FROM Timestamps';
+  var values = [];
+  return await database.rawQuery(query, values);
 }
 
 Future<List> listTimestampsSingleDay(int year, int month, int day,

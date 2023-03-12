@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:timetracker/views/settings_page.dart';
 
 import 'report_page.dart';
 import 'timer_page.dart';
@@ -27,7 +28,7 @@ class _TimeTrackerHomeState extends State<TimeTrackerHome> {
           TimerPage(),
           Placeholder(),
           ReportPage(),
-          Placeholder(),
+          SettingsPage(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
