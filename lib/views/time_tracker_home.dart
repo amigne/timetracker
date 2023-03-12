@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'report_page.dart';
 import 'timer_page.dart';
 
 class TimeTrackerHome extends StatefulWidget {
@@ -25,7 +26,7 @@ class _TimeTrackerHomeState extends State<TimeTrackerHome> {
         children: const <Widget>[
           TimerPage(),
           Placeholder(),
-          Placeholder(),
+          ReportPage(),
           Placeholder(),
         ],
       ),

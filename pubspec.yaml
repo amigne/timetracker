@@ -25,11 +25,14 @@ dependencies:
     sdk: flutter
   flutter_icons:
     git: https://github.com/jibiel/flutter-icons
+  excel: "2.0.1"
+  path:
+  path_provider:
   percent_indicator:
   sqflite:
   sqflite_common_ffi:
   sqlite3_flutter_libs:
-  path:
+  share_plus: "^6.3.1"
   timezone:
 
   # The following adds the Cupertino Icons font to your application.

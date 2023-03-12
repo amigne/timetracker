@@ -22,13 +22,10 @@ class _TimerPageState extends State<TimerPage> {
   Color _progressColor = Colors.grey;
   Color _backgroundColor = Colors.grey;
 
-  // late Timer _timer;
-
   @override
   void initState() {
     super.initState();
     updateState();
-    // _timer = Timer.periodic(const Duration(seconds: 1), (Timer t) => updateState());
   }
 
   @override
@@ -87,6 +84,8 @@ class _TimerPageState extends State<TimerPage> {
   }
 
   void updateState() async {
+    if (!mounted) return;
+
     var timestampsNumber = await countTodayActiveTimestamps();
     var totalTime = await getTotalDuration();
     var lastTimestamp = await displayTime(await getLastTimestamp());
@@ -103,11 +102,14 @@ class _TimerPageState extends State<TimerPage> {
       progressColor = active ? Colors.green.shade700 : Colors.green.shade300;
       backgroundColor = active ? Colors.blue.shade400 : Colors.grey.shade300;
     } else {
-      ratio = (totalTime.inMinutes - expectedWorkDuration) / (maximumWorkDuration - expectedWorkDuration);
+      ratio = (totalTime.inMinutes - expectedWorkDuration) /
+          (maximumWorkDuration - expectedWorkDuration);
       if (maximumWorkDuration >= expectedWorkDuration && ratio <= 1.0) {
         percent = ratio;
-        progressColor = active ? Colors.orange.shade700 : Colors.orange.shade300;
-        backgroundColor = active ? Colors.green.shade700 : Colors.green.shade300;
+        progressColor =
+            active ? Colors.orange.shade700 : Colors.orange.shade300;
+        backgroundColor =
+            active ? Colors.green.shade700 : Colors.green.shade300;
       } else {
         percent = 1.0;
         progressColor = active ? Colors.red : Colors.red.shade200;
@@ -129,14 +131,14 @@ class _TimerPageState extends State<TimerPage> {
   }
 
   Future<int> getExpectedWorkDuration() async {
-    var weekDay = await getTodayWeekDay();
+    var weekDay = await getWeekDayString();
 
     var settings = await Settings.instance();
     return int.parse(settings.settings['duration.${weekDay}s'] ?? '0');
   }
 
   Future<int> getMaximumWorkDuration() async {
-    var weekDay = await getTodayWeekDay();
+    var weekDay = await getWeekDayString();
 
     var settings = await Settings.instance();
     return int.parse(settings.settings['duration.max.${weekDay}s'] ?? '0');

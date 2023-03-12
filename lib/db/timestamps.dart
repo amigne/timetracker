@@ -204,12 +204,13 @@ String getTimeDoubleToString(double time) {
 }
 
 String displayDuration(Duration duration) {
-  var hours = (duration.inHours % 24)
+  var sign = duration.inMinutes < 0 ? '-' : '';
+  var hours = (duration.inHours.abs() % 24)
       .toString()
       .padLeft(2, '0'); // In case we exceed 24 hours...
-  var minutes = (duration.inMinutes % 60).toString().padLeft(2, '0');
+  var minutes = (duration.inMinutes.abs() % 60).toString().padLeft(2, '0');
 
-  return '$hours:$minutes';
+  return '$sign$hours:$minutes';
 }
 
 Future<String> displayTime(int millisecondsSinceEpoch) async {
@@ -227,6 +228,27 @@ Future<String> displayTime(int millisecondsSinceEpoch) async {
   var minutes = appDateTime.minute.toString().padLeft(2, '0');
 
   return '$hours:$minutes';
+}
+
+Future<String> getWeekDayString([int? weekday]) async {
+  Map<int, String> weekDayString = {
+    DateTime.monday: 'monday',
+    DateTime.tuesday: 'tuesday',
+    DateTime.wednesday: 'wednesday',
+    DateTime.thursday: 'thursday',
+    DateTime.friday: 'friday',
+    DateTime.saturday: 'saturday',
+    DateTime.sunday: 'sunday',
+  };
+
+  if (weekday == null) {
+    var settings = await Settings.instance();
+    var timeZone = settings.settings['general.timeZone'] ?? 'UTC';
+
+    var appTz = tz.getLocation(timeZone);
+    weekday = tz.TZDateTime.from(DateTime.now().toUtc(), appTz).weekday;
+  }
+  return weekDayString[weekday] ?? 'unknown';
 }
 
 Future<String> getTodayWeekDay() async {
@@ -247,4 +269,44 @@ Future<String> getTodayWeekDay() async {
   var appDateTime = tz.TZDateTime.from(DateTime.now().toUtc(), appTz);
 
   return weekDayString[appDateTime.weekday] ?? 'unknown';
+}
+
+Future<List<String>> getListOfMonths() async {
+    var database = await getTimestampDatabase();
+
+    var query = 'SELECT * FROM Timestamps WHERE deleted=? ORDER BY dateTime ASC LIMIT 1';
+    var values = [0];
+    List<Map> result = await database.rawQuery(query, values);
+
+
+    var beginning = result.isNotEmpty ? DateTime.fromMillisecondsSinceEpoch(result[0]['dateTime']) : DateTime.now();
+    var end = DateTime.now();
+
+    List<String> months = [];
+    for (var year = end.year; year >= beginning.year; --year) {
+      var startMonth = (year == end.year ? end.month : 12);
+      var endMonth = (year == beginning.year ? beginning.month : 1);
+      for (var month = startMonth; month >= endMonth; --month) {
+        months.add('${formatYear(year)}-${formatMonth(month)}');
+      }
+    }
+
+    return months;
+}
+
+String formatMonth(int month) => month.toString().padLeft(2, '0');
+String formatYear(int year) => year.toString().padLeft(4, '0');
+
+Future<int> getStandardWorkDurationForDay([int? weekday]) async {
+  var weekDayString = await getWeekDayString(weekday);
+
+  var settings = await Settings.instance();
+  return int.parse(settings.settings['duration.${weekDayString}s'] ?? '0');
+}
+
+Future<int> getMaximumWorkDurationForDay([int? weekday]) async {
+  var weekDayString = await getWeekDayString(weekday);
+
+  var settings = await Settings.instance();
+  return int.parse(settings.settings['duration.max.${weekDayString}s'] ?? '0');
 }
