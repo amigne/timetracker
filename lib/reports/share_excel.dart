@@ -56,24 +56,42 @@ String _weekDayName(int weekday, {int truncate = 0}) {
 }
 
 void shareExcel(String yearMonth) async {
-  var excel = Excel.createExcel();
+  final excel = Excel.createExcel();
   excel.rename(excel.getDefaultSheet()!, yearMonth);
   excel.setDefaultSheet(yearMonth);
   Sheet sheet = excel[yearMonth];
 
   // Title
-  //sheet.merge(CellIndex.indexByString('A1'), CellIndex.indexByString('E1'), customValue: 'Timestamps - ${_monthName(month)} ${_year(month)}');
-  //sheet.cell(CellIndex.indexByString('A1')).cellStyle = CellStyle(fontSize: 18, bold: true, horizontalAlign: HorizontalAlign.Center,);
+  sheet.merge(CellIndex.indexByString('A1'), CellIndex.indexByString('E1'),
+      customValue: 'Timestamps - ${_monthName(yearMonth)} ${_year(yearMonth)}');
+  sheet.cell(CellIndex.indexByString('A1')).cellStyle = CellStyle(
+    fontSize: 18,
+    bold: true,
+    horizontalAlign: HorizontalAlign.Center,
+  );
+
+  sheet.setColWidth(1, 60.0);
+
+  final borderMedium = Border(borderStyle: BorderStyle.Medium);
+  final borderThin = Border(borderStyle: BorderStyle.Thin);
+  final borderHair = Border(borderStyle: BorderStyle.Hair);
 
   // Table header
-  var headerLeftCellStyle = CellStyle(
+  final headerLeftCellStyle = CellStyle(
     bold: true,
+    bottomBorder: borderMedium,
+    rightBorder: borderThin,
   );
-  var headerCenterCellStyle = CellStyle(
+  final headerCenterCellStyle = CellStyle(
     bold: true,
+    bottomBorder: borderMedium,
+    rightBorder: borderThin,
+    leftBorder: borderThin,
   );
-  var headerRightCellStyle = CellStyle(
+  final headerRightCellStyle = CellStyle(
     bold: true,
+    bottomBorder: borderMedium,
+    leftBorder: borderThin,
   );
   sheet.cell(CellIndex.indexByString('A3'))
     ..value = 'Date'
@@ -91,28 +109,41 @@ void shareExcel(String yearMonth) async {
     ..value = 'Difference'
     ..cellStyle = headerRightCellStyle;
 
-  var year = int.parse(yearMonth.split('-')[0]);
-  var month = int.parse(yearMonth.split('-')[1]);
+  final year = int.parse(yearMonth.split('-')[0]);
+  final month = int.parse(yearMonth.split('-')[1]);
 
-  var dateCellStyle = CellStyle(
+  final dateCellStyle = CellStyle(
     horizontalAlign: HorizontalAlign.Right,
     verticalAlign: VerticalAlign.Top,
+    rightBorder: borderThin,
+    bottomBorder: borderHair,
   );
-  var timestampsCellStyle = CellStyle(
+  final timestampsCellStyle = CellStyle(
     textWrapping: TextWrapping.WrapText,
     verticalAlign: VerticalAlign.Top,
+    rightBorder: borderThin,
+    leftBorder: borderThin,
+    bottomBorder: borderHair,
   );
-  var totalCellStyle = CellStyle(
+  final totalCellStyle = CellStyle(
     horizontalAlign: HorizontalAlign.Right,
     verticalAlign: VerticalAlign.Top,
+    rightBorder: borderThin,
+    leftBorder: borderThin,
+    bottomBorder: borderHair,
   );
-  var targetCellStyle = CellStyle(
+  final targetCellStyle = CellStyle(
     horizontalAlign: HorizontalAlign.Right,
     verticalAlign: VerticalAlign.Top,
+    rightBorder: borderThin,
+    leftBorder: borderThin,
+    bottomBorder: borderHair,
   );
-  var differenceCellStyle = CellStyle(
+  final differenceCellStyle = CellStyle(
     horizontalAlign: HorizontalAlign.Right,
     verticalAlign: VerticalAlign.Top,
+    leftBorder: borderThin,
+    bottomBorder: borderHair,
   );
 
   // Generate the timestamps table
@@ -120,8 +151,8 @@ void shareExcel(String yearMonth) async {
   for (var dateTime = DateTime(year, month, 1);
       dateTime.month == month;
       dateTime = dateTime.add(const Duration(days: 1))) {
-    var day = dateTime.day;
-    var weekday = dateTime.weekday;
+    final day = dateTime.day;
+    final weekday = dateTime.weekday;
 
     // List of timestamps in milliseconds
     List<int> listTimestampsInMilliseconds =
@@ -129,7 +160,7 @@ void shareExcel(String yearMonth) async {
             .map((timestamp) => timestamp['dateTime'] as int)
             .toList();
     listTimestampsInMilliseconds.sort((a, b) => a.compareTo(b));
-    var numberOfTimestamps = listTimestampsInMilliseconds.length;
+    final numberOfTimestamps = listTimestampsInMilliseconds.length;
 
     // Date column
     sheet.cell(CellIndex.indexByString('A$line'))
@@ -139,7 +170,7 @@ void shareExcel(String yearMonth) async {
 
     // Timestamps column
     List<String> listTimestamps = [];
-    for (var millisecondsSinceEpoch in listTimestampsInMilliseconds) {
+    for (final millisecondsSinceEpoch in listTimestampsInMilliseconds) {
       listTimestamps.add(await displayTime(millisecondsSinceEpoch));
     }
 
@@ -152,7 +183,8 @@ void shareExcel(String yearMonth) async {
     if (numberOfTimestamps > 0 && numberOfTimestamps % 2 == 0) {
       int totalTime = 0;
       for (int i = 0; i < numberOfTimestamps; i += 2) {
-        totalTime += (listTimestampsInMilliseconds[i+1] - listTimestampsInMilliseconds[i]);
+        totalTime += (listTimestampsInMilliseconds[i + 1] -
+            listTimestampsInMilliseconds[i]);
       }
       totalDuration = Duration(milliseconds: totalTime);
     }
@@ -161,14 +193,14 @@ void shareExcel(String yearMonth) async {
       ..cellStyle = totalCellStyle;
 
     // Target column
-    var target = await getStandardWorkDurationForDay(weekday);
-    var targetDuration = Duration(minutes: target);
+    final target = await getStandardWorkDurationForDay(weekday);
+    final targetDuration = Duration(minutes: target);
     sheet.cell(CellIndex.indexByString('D$line'))
       ..value = displayDuration(targetDuration)
       ..cellStyle = targetCellStyle;
 
     // Difference column
-    var differenceDuration = totalDuration - targetDuration;
+    final differenceDuration = totalDuration - targetDuration;
     sheet.cell(CellIndex.indexByString('E$line'))
       ..value = displayDuration(differenceDuration)
       ..cellStyle = differenceCellStyle;
@@ -176,12 +208,13 @@ void shareExcel(String yearMonth) async {
     line++;
   }
 
-  var fileBytes = excel.save();
-  var directory = (await getApplicationDocumentsDirectory()).path;
+  final fileBytes = excel.save();
+  final directory = (await getApplicationDocumentsDirectory()).path;
 
   File(join('$directory/$yearMonth.xlsx'))
     ..createSync(recursive: true)
     ..writeAsBytesSync(fileBytes!);
 
-  Share.shareXFiles([XFile('$directory/$yearMonth.xlsx')], text: 'Monthly report for $yearMonth');
+  Share.shareXFiles([XFile('$directory/$yearMonth.xlsx')],
+      text: 'Monthly report for $yearMonth');
 }
