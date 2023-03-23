@@ -17,6 +17,15 @@ dynamic getTimestampDatabase() async {
   return timestampDatabase ?? await openTimestampDatabase();
 }
 
+Future<String> getDatabasesPath() async {
+  if (Platform.isWindows || Platform.isLinux) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
+
+  return await databaseFactory.getDatabasesPath();
+}
+
 dynamic openTimestampDatabase({String filename = 'timestamps.db'}) async {
   if (timestampDatabase == null) {
     if (Platform.isWindows || Platform.isLinux) {
@@ -39,7 +48,7 @@ dynamic openTimestampDatabase({String filename = 'timestamps.db'}) async {
 void _onCreateTimestampDatabase(db, version) async {
   var batch = db.batch();
   _createTableTimestampV1(batch);
-  _createTableSettingsV1(batch);
+  await _createTableSettingsV1(batch);
   _fillTableSettingsV1(batch);
   await batch.commit();
 }
@@ -54,7 +63,7 @@ void _createTableTimestampV1(Batch batch) {
       ')');
 }
 
-void _createTableSettingsV1(Batch batch) {
+Future<void> _createTableSettingsV1(Batch batch) async {
   batch.execute('DROP TABLE IF EXISTS Settings');
   batch.execute('CREATE TABLE Settings ('
       'id INTEGER PRIMARY KEY AUTOINCREMENT, '
@@ -66,6 +75,10 @@ void _createTableSettingsV1(Batch batch) {
 void _fillTableSettingsV1(Batch batch) {
   batch.execute(
       'INSERT INTO Settings (key, value) VALUES ("general.timeZone", "Europe/Zurich")');
+  final now = DateTime.now();
+  final todayTimestamp = DateTime.utc(now.year, now.month, now.day).millisecondsSinceEpoch;
+  batch.execute(
+      'INSERT INTO Settings (key, value) VALUES ("general.startTimestamp", "$todayTimestamp")');
   batch.execute(
       'INSERT INTO Settings (key, value) VALUES ("duration.mondays", "492")');
   batch.execute(
@@ -99,7 +112,7 @@ void _fillTableSettingsV1(Batch batch) {
 class AlreadySameTimestampException implements Exception {}
 
 Future<void> addTimestamp({required Timestamp timestamp}) async {
-  var database = await getTimestampDatabase();
+  final database = await getTimestampDatabase();
 
   // First query: Ensure there is no timestamp at the same instant
   var query = 'SELECT dateTime FROM Timestamps WHERE dateTime=?';
@@ -115,7 +128,27 @@ Future<void> addTimestamp({required Timestamp timestamp}) async {
   await database.insert('Timestamps', timestamp.toMapForDB());
 }
 
-Future<List> listAllTimestampsSingleDay() async {
+Future<void> deleteTimestamp(int id) async {
+  final database = await getTimestampDatabase();
+
+  await database.update(
+      'Timestamps',
+      {'deleted': 1},
+      where: 'id = ?',
+      whereArgs: [id]);
+}
+
+Future<void> undeleteTimestamp(int id) async {
+  final database = await getTimestampDatabase();
+
+  await database.update(
+      'Timestamps',
+      {'deleted': 0},
+      where: 'id = ?',
+      whereArgs: [id]);
+}
+
+Future<List> listAllTimestamps() async {
   var database = await getTimestampDatabase();
 
   var query = 'SELECT * FROM Timestamps';
@@ -123,25 +156,38 @@ Future<List> listAllTimestampsSingleDay() async {
   return await database.rawQuery(query, values);
 }
 
+Future<int> getUtcMidnightForTZ(int year, int month, int day) async {
+  final settings = await Settings.instance();
+  final timeZone = settings.settings['general.timeZone'] ?? 'UTC';
+
+  final appTZ = tz.getLocation(timeZone);
+  final dateTime = tz.TZDateTime(appTZ, year, month, day).toUtc();
+
+  return dateTime.millisecondsSinceEpoch;
+}
+
 Future<List> listTimestampsSingleDay(int year, int month, int day,
-    {bool deleted = false}) async {
-  var settings = await Settings.instance();
-  var timeZone = settings.settings['general.timeZone'] ?? 'UTC';
-
-  var appTz = tz.getLocation(timeZone);
-  var beginningDay = tz.TZDateTime(appTz, year, month, day).toUtc();
-  var endDay = tz.TZDateTime(appTz, year, month, day + 1).toUtc();
-
+    {bool includeDeleted = false}) async {
   var database = await getTimestampDatabase();
 
   var query =
-      'SELECT * FROM Timestamps WHERE dateTime>=? AND dateTime <? AND deleted=? ORDER BY dateTime DESC';
+      'SELECT * FROM Timestamps WHERE dateTime>=? AND dateTime <? ${!includeDeleted ? 'AND deleted=? ' : ''}ORDER BY dateTime DESC';
   var values = [
-    beginningDay.millisecondsSinceEpoch,
-    endDay.millisecondsSinceEpoch,
-    deleted ? 1 : 0
+    await getUtcMidnightForTZ(year, month, day),
+    await getUtcMidnightForTZ(year, month, day + 1),
   ];
+  if (!includeDeleted) {
+    values.add(0);
+  }
   return await database.rawQuery(query, values);
+}
+
+Future<tz.TZDateTime> tzNow() async {
+  final settings = await Settings.instance();
+  final timeZone = settings.settings['general.timeZone'] ?? 'UTC';
+  final appTz = tz.getLocation(timeZone);
+
+  return tz.TZDateTime.from(DateTime.now(), appTz);
 }
 
 Future<List> listTodayActiveTimestamps() async {
@@ -152,7 +198,7 @@ Future<List> listTodayActiveTimestamps() async {
   var now = tz.TZDateTime.from(DateTime.now(), appTz);
 
   return await listTimestampsSingleDay(now.year, now.month, now.day,
-      deleted: false);
+      includeDeleted: false);
 }
 
 Future<int> countTodayActiveTimestamps() async {
@@ -162,9 +208,20 @@ Future<int> countTodayActiveTimestamps() async {
 String _formatTime(int hour, int minute) =>
     'T${hour.toString().padLeft(2, '0')}${minute.toString().padLeft(2, '0')}';
 
+String formatDate(int year, int month, int day) =>
+    '$year-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
+
 Future<int> getLastTimestamp() async {
   var todayTimestamps = await listTodayActiveTimestamps();
-  return todayTimestamps.isNotEmpty ? todayTimestamps[0]['dateTime'] : 0;
+  return todayTimestamps.isNotEmpty ? todayTimestamps[0]['dateTime'] : -1;
+}
+
+Future<DateTime> getStartDate() async {
+  final settings = await Settings.instance();
+  // TODO: Default value: use first timestamp instead of current date
+  final startTimestamp = int.parse(settings.settings['general.startTimestamp'] ?? ((await tzNow()).millisecondsSinceEpoch).toString());
+
+  return DateTime.fromMillisecondsSinceEpoch(startTimestamp);
 }
 
 Future<Duration> getTotalDuration([int? year, int? month, int? day]) async {
@@ -282,26 +339,28 @@ Future<String> getTodayWeekDay() async {
 }
 
 Future<List<String>> getListOfMonths() async {
-    var database = await getTimestampDatabase();
+  var database = await getTimestampDatabase();
 
-    var query = 'SELECT * FROM Timestamps WHERE deleted=? ORDER BY dateTime ASC LIMIT 1';
-    var values = [0];
-    List<Map> result = await database.rawQuery(query, values);
+  var query =
+      'SELECT * FROM Timestamps WHERE deleted=? ORDER BY dateTime ASC LIMIT 1';
+  var values = [0];
+  List<Map> result = await database.rawQuery(query, values);
 
+  var beginning = result.isNotEmpty
+      ? DateTime.fromMillisecondsSinceEpoch(result[0]['dateTime'])
+      : DateTime.now();
+  var end = DateTime.now();
 
-    var beginning = result.isNotEmpty ? DateTime.fromMillisecondsSinceEpoch(result[0]['dateTime']) : DateTime.now();
-    var end = DateTime.now();
-
-    List<String> months = [];
-    for (var year = end.year; year >= beginning.year; --year) {
-      var startMonth = (year == end.year ? end.month : 12);
-      var endMonth = (year == beginning.year ? beginning.month : 1);
-      for (var month = startMonth; month >= endMonth; --month) {
-        months.add('${formatYear(year)}-${formatMonth(month)}');
-      }
+  List<String> months = [];
+  for (var year = end.year; year >= beginning.year; --year) {
+    var startMonth = (year == end.year ? end.month : 12);
+    var endMonth = (year == beginning.year ? beginning.month : 1);
+    for (var month = startMonth; month >= endMonth; --month) {
+      months.add('${formatYear(year)}-${formatMonth(month)}');
     }
+  }
 
-    return months;
+  return months;
 }
 
 String formatMonth(int month) => month.toString().padLeft(2, '0');

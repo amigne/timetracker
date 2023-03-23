@@ -10,7 +10,7 @@ import './settings.dart';
 
 void backupAndShareDB() async {
   final settings = await Settings.listAllSettings();
-  final timestamps = await listAllTimestampsSingleDay();
+  final timestamps = await listAllTimestamps();
 
   final builder = XmlBuilder();
   builder.processing('xml', 'version="1.0"');

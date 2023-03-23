@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:timetracker/views/settings_page.dart';
 
+import 'daily_page.dart';
 import 'report_page.dart';
 import 'timer_page.dart';
 
@@ -26,15 +27,12 @@ class _TimeTrackerHomeState extends State<TimeTrackerHome> {
         onPageChanged: _onPageChanged,
         children: const <Widget>[
           TimerPage(),
-          Placeholder(),
+          DailyPage(),
           ReportPage(),
           SettingsPage(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
-        //backgroundColor: Theme.of(context).primaryColor,
-        //selectedItemColor: Theme.of(context).colorScheme.secondary,
-        //unselectedItemColor: Colors.grey[500],
         elevation: 20,
         type: BottomNavigationBarType.fixed,
         items: bottomNavigationBarItems,
@@ -69,7 +67,7 @@ class _TimeTrackerHomeState extends State<TimeTrackerHome> {
     ),
     BottomNavigationBarItem(
       icon: Icon(Icons.text_snippet),
-      label: 'Today',
+      label: 'Daily',
     ),
     BottomNavigationBarItem(
       icon: Icon(Icons.calendar_month),

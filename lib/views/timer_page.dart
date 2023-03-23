@@ -46,7 +46,7 @@ class _TimerPageState extends State<TimerPage> {
                     .style
                     .apply(fontSizeFactor: 2.5),
               ),
-              Text('Last: $_lastTimestamp')
+              Text(_lastTimestamp)
             ],
           ),
           progressColor: _progressColor,
@@ -86,14 +86,15 @@ class _TimerPageState extends State<TimerPage> {
   void updateState() async {
     if (!mounted) return;
 
-    var timestampsNumber = await countTodayActiveTimestamps();
-    var totalTime = await getTotalDuration();
-    var lastTimestamp = await displayTime(await getLastTimestamp());
-    var expectedWorkDuration = await getExpectedWorkDuration();
-    var maximumWorkDuration = await getMaximumWorkDuration();
+    final timestampsNumber = await countTodayActiveTimestamps();
+    final totalTime = await getTotalDuration();
+    final lastTimestamp = await getLastTimestamp();
+    final lastTimestampStr = lastTimestamp >= 0 ? 'Last: ${await displayTime(lastTimestamp)}' : '';
+    final expectedWorkDuration = await getExpectedWorkDuration();
+    final maximumWorkDuration = await getMaximumWorkDuration();
     var ratio = totalTime.inMinutes / expectedWorkDuration;
 
-    var active = timestampsNumber % 2 == 1;
+    final active = timestampsNumber % 2 == 1;
     Color progressColor;
     Color backgroundColor;
     double percent;
@@ -119,7 +120,7 @@ class _TimerPageState extends State<TimerPage> {
 
     setState(() {
       _totalTime = displayDuration(totalTime);
-      _lastTimestamp = lastTimestamp;
+      _lastTimestamp = lastTimestampStr;
       _percent = percent;
       _progressColor = progressColor;
       _backgroundColor = backgroundColor;
