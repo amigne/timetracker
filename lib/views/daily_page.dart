@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 
 import 'package:date_time_picker/date_time_picker.dart';
 import 'package:syncfusion_flutter_datepicker/datepicker.dart';
-import 'package:timetracker/db/timestamp.dart';
 
-import '../db/timestamps.dart';
+import '../models/timestamp.dart';
+import '../settings/setting_extension.dart';
+import '../timestamps/datetime_comparison.dart';
+import '../timestamps/datetime_extension.dart';
+import '../timestamps/timestamp_extension.dart';
+import '../utils/datetime.dart';
 
 class DailyPage extends StatefulWidget {
   const DailyPage({Key? key}) : super(key: key);
@@ -49,7 +53,7 @@ class _DailyPageState extends State<DailyPage> {
             ),
             GestureDetector(
               onTap: addManualTimestampMaker(context),
-              child:const Icon(Icons.add),
+              child: const Icon(Icons.add),
             ),
           ],
         ),
@@ -64,24 +68,23 @@ class _DailyPageState extends State<DailyPage> {
     return () async {
       showDialog<String>(
         context: context,
-        builder: (BuildContext context) =>
-            AlertDialog(
-              title: const Text('Select the date'),
-              content: SizedBox(
-                height: 350,
-                width: 350,
-                child: Card(
-                  child: SfDateRangePicker(
-                    onSelectionChanged: dateChanged,
-                    selectionMode: DateRangePickerSelectionMode.single,
-                    initialSelectedDate: _selectedDate,
-                    minDate: _startDate,
-                    maxDate: _endDate,
-                  ),
-                ),
+        builder: (BuildContext context) => AlertDialog(
+          title: const Text('Select the date'),
+          content: SizedBox(
+            height: 350,
+            width: 350,
+            child: Card(
+              child: SfDateRangePicker(
+                onSelectionChanged: dateChanged,
+                selectionMode: DateRangePickerSelectionMode.single,
+                initialSelectedDate: _selectedDate,
+                minDate: _startDate,
+                maxDate: _endDate,
               ),
-              actions: const <Widget>[],
             ),
+          ),
+          actions: const <Widget>[],
+        ),
       );
     };
   }
@@ -91,33 +94,32 @@ class _DailyPageState extends State<DailyPage> {
     return () async {
       showDialog<String>(
         context: context,
-        builder: (BuildContext context) =>
-            AlertDialog(
-              title: const Text('Add a new timestamp'),
-              content: SizedBox(
-                height: 350,
-                width: 350,
-                child: Card(
-                  child: DateTimePicker(
-                    type: DateTimePickerType.time,
-                    use24HourFormat: true,
-                    initialValue: '00:00',
-                    timeLabelText: 'Time',
-                    onChanged: (val) => _selectedTimeStr = val,
-                  ),
-                ),
+        builder: (BuildContext context) => AlertDialog(
+          title: const Text('Add a new timestamp'),
+          content: SizedBox(
+            height: 350,
+            width: 350,
+            child: Card(
+              child: DateTimePicker(
+                type: DateTimePickerType.time,
+                use24HourFormat: true,
+                initialValue: '00:00',
+                timeLabelText: 'Time',
+                onChanged: (val) => _selectedTimeStr = val,
               ),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () => Navigator.pop(context, 'Cancel'),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: addNewTimestampMaker(context),
-                  child: const Text('OK'),
-                ),
-              ],
             ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'Cancel'),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: addNewTimestampMaker(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
       );
     };
   }
@@ -133,9 +135,12 @@ class _DailyPageState extends State<DailyPage> {
       final minutes = int.parse(timeParts[1]);
 
       final dateTime = DateTime(year, month, day, hours, minutes);
-      final timestamp = Timestamp(dateTime, origin: Timestamp.inputManual);
 
-      await addTimestamp(timestamp: timestamp);
+      if (dateTime <= DateTime.now()) {
+        await TimestampExtension.addTimestamp(
+            timestamp: dateTime.millisecondsSinceEpoch,
+            origin: TimestampsOrigin.inputManual);
+      }
 
       _selectedTimeStr = '';
       Navigator.pop(context);
@@ -152,29 +157,29 @@ class _DailyPageState extends State<DailyPage> {
   void updateState() async {
     if (!mounted) return;
 
-    final startDate = _startDate ?? await getStartDate();
-    final endDate = _endDate ?? await tzNow();
-    final selectedDate = _selectedDate ?? await tzNow();
+    final startDate = _startDate ?? await SettingExtension.startDate();
+    final endDate = _endDate ?? await DateTimeExtension.tzNow();
+    final selectedDate = _selectedDate ?? await DateTimeExtension.tzNow();
     final selectedDateStr =
-    formatDate(selectedDate.year, selectedDate.month, selectedDate.day);
+        formatDate(selectedDate.year, selectedDate.month, selectedDate.day);
 
-    List<TableRow> tableRows = [];
-    var timestamps = (await listTimestampsSingleDay(
-        selectedDate.year, selectedDate.month, selectedDate.day,
-        includeDeleted: true)).toList();
-    timestamps.sort((a, b) => a['dateTime'].compareTo(b['dateTime']));
+    final timestamps = (await TimestampExtension.listTimestampsSingleDay(
+            selectedDate.year, selectedDate.month, selectedDate.day,
+            includeDeleted: true))
+        .toList();
+    timestamps.sort((a, b) => a.utcTimestamp.compareTo(b.utcTimestamp));
+
+    final List<TableRow> tableRows = [];
     var count = 0;
-    for (var ts in timestamps) {
-      final timestamp = Timestamp.fromMillisecondsSinceEpoch(
-          ts['dateTime'], id: ts['id'],
-          origin: ts['origin'],
-          deleted: ts['deleted'] != 0);
+    for (var timestamp in timestamps) {
+      /*final timestamp = Timestamp(ts['dateTime'],
+          id: ts['id'], origin: ts['origin'], deleted: ts['deleted'] != 0);*/
 
       var style = const TextStyle();
-      var icon = count % 2 == 0 ? const Icon(Icons.input) : const Icon(
-          Icons.output);
+      var icon =
+          count % 2 == 0 ? const Icon(Icons.input) : const Icon(Icons.output);
       var trashIcon = GestureDetector(
-        onTap: deleteMaker(timestamp.id!),
+        onTap: deleteMaker(timestamp),
         child: const Icon(Icons.delete, color: Colors.red),
       );
 
@@ -182,7 +187,7 @@ class _DailyPageState extends State<DailyPage> {
         style = const TextStyle(decoration: TextDecoration.lineThrough);
         icon = const Icon(Icons.block);
         trashIcon = GestureDetector(
-          onTap: undeleteMaker(timestamp.id!),
+          onTap: undeleteMaker(timestamp),
           child: const Icon(Icons.delete_outlined, color: Colors.green),
         );
       }
@@ -192,8 +197,7 @@ class _DailyPageState extends State<DailyPage> {
       tableRows.add(TableRow(
         children: [
           icon,
-          Text(await displayTime(timestamp.millisecondsSinceEpoch),
-              style: style),
+          Text(await displayTime(timestamp.utcTimestamp), style: style),
           Text(getOriginAbbrev(timestamp.origin)),
           trashIcon,
         ],
@@ -209,26 +213,27 @@ class _DailyPageState extends State<DailyPage> {
     });
   }
 
-  deleteMaker(int id) {
+  deleteMaker(Timestamp timestamp) {
     return () async {
-      await deleteTimestamp(id);
+      timestamp.deleted = true;
+      await timestamp.save();
       updateState();
     };
   }
 
-  undeleteMaker(int id) {
+  undeleteMaker(Timestamp timestamp) {
     return () async {
-      await undeleteTimestamp(id);
+      timestamp.deleted = false;
+      await timestamp.save();
       updateState();
     };
   }
 
-
-  getOriginAbbrev(int origin) {
+  getOriginAbbrev(TimestampsOrigin origin) {
     switch (origin) {
-      case 0:
+      case TimestampsOrigin.inputClick:
         return 'A';
-      case 1:
+      case TimestampsOrigin.inputManual:
         return 'M';
       default:
         return '?';

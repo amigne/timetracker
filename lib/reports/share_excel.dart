@@ -5,7 +5,9 @@ import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../db/timestamps.dart';
+import '../settings/setting_extension.dart';
+import '../timestamps/timestamp_extension.dart';
+import '../utils/datetime.dart';
 
 Map<int, String> months = {
   DateTime.january: 'january',
@@ -156,8 +158,8 @@ void shareExcel(String yearMonth) async {
 
     // List of timestamps in milliseconds
     List<int> listTimestampsInMilliseconds =
-        (await listTimestampsSingleDay(year, month, day))
-            .map((timestamp) => timestamp['dateTime'] as int)
+        (await TimestampExtension.listTimestampsSingleDay(year, month, day))
+            .map((timestamp) => timestamp.utcTimestamp as int)
             .toList();
     listTimestampsInMilliseconds.sort((a, b) => a.compareTo(b));
     final numberOfTimestamps = listTimestampsInMilliseconds.length;
@@ -171,7 +173,8 @@ void shareExcel(String yearMonth) async {
     // Timestamps column
     List<String> listTimestamps = [];
     for (final millisecondsSinceEpoch in listTimestampsInMilliseconds) {
-      listTimestamps.add(await displayTime(millisecondsSinceEpoch));
+      listTimestamps
+          .add(await TimestampExtension.displayTime(millisecondsSinceEpoch));
     }
 
     sheet.cell(CellIndex.indexByString('B$line'))
@@ -193,7 +196,8 @@ void shareExcel(String yearMonth) async {
       ..cellStyle = totalCellStyle;
 
     // Target column
-    final target = await getStandardWorkDurationForDay(weekday);
+    final target =
+        await SettingExtension.getStandardWorkDurationForDay(weekday);
     final targetDuration = Duration(minutes: target);
     sheet.cell(CellIndex.indexByString('D$line'))
       ..value = displayDuration(targetDuration)

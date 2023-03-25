@@ -3,10 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:percent_indicator/percent_indicator.dart';
-import 'package:timetracker/db/timestamp.dart';
 
-import '../db/timestamps.dart';
-import '../settings/settings.dart';
+import '../models/setting.dart';
+import '../models/timestamp.dart';
+import '../timestamps/timestamp_extension.dart';
+import '../utils/datetime.dart';
 
 class TimerPage extends StatefulWidget {
   const TimerPage({Key? key}) : super(key: key);
@@ -58,8 +59,7 @@ class _TimerPageState extends State<TimerPage> {
 
   tapMaker(context) {
     return () async {
-      var timestamp = Timestamp(DateTime.now());
-      await addTimestamp(timestamp: timestamp).then((_) {
+      await TimestampExtension.addTimestamp().then((_) {
         updateState();
       }).catchError(
         (error, stackTrace) {
@@ -86,10 +86,13 @@ class _TimerPageState extends State<TimerPage> {
   void updateState() async {
     if (!mounted) return;
 
-    final timestampsNumber = await countTodayActiveTimestamps();
-    final totalTime = await getTotalDuration();
-    final lastTimestamp = await getLastTimestamp();
-    final lastTimestampStr = lastTimestamp >= 0 ? 'Last: ${await displayTime(lastTimestamp)}' : '';
+    final timestampsNumber =
+        await TimestampExtension.countTodayActiveTimestamps();
+    final totalTime = await TimestampExtension.getTotalDuration();
+    final lastTimestamp = await TimestampExtension.getLastTimestamp();
+    final lastTimestampStr = lastTimestamp != null
+        ? 'Last: ${await TimestampExtension.displayTime(lastTimestamp.utcTimestamp)}'
+        : '';
     final expectedWorkDuration = await getExpectedWorkDuration();
     final maximumWorkDuration = await getMaximumWorkDuration();
     var ratio = totalTime.inMinutes / expectedWorkDuration;
@@ -133,17 +136,15 @@ class _TimerPageState extends State<TimerPage> {
 
   // TODO: Move method to dedicated class
   Future<int> getExpectedWorkDuration() async {
-    var weekDay = await getWeekDayString();
+    final weekDay = await TimestampExtension.getWeekDayString();
 
-    var settings = await Settings.instance();
-    return int.parse(settings.settings['duration.${weekDay}s'] ?? '0');
+    return int.parse((await Setting.get('duration.$weekDay')) ?? '0');
   }
 
   // TODO: Move method to dedicated class
   Future<int> getMaximumWorkDuration() async {
-    var weekDay = await getWeekDayString();
+    final weekDay = await TimestampExtension.getWeekDayString();
 
-    var settings = await Settings.instance();
-    return int.parse(settings.settings['duration.max.${weekDay}s'] ?? '0');
+    return int.parse((await Setting.get('duration.max.$weekDay')) ?? '0');
   }
 }

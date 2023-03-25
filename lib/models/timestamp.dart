@@ -1,11 +1,9 @@
 import 'package:sqflite/sqflite.dart';
+import 'package:xml/xml.dart';
 
 import '../db/database_helper.dart';
 
-enum TimestampsOrigin {
-  inputClick,
-  inputManual,
-}
+class AlreadySameTimestampException implements Exception {}
 
 class Timestamp {
   static final Future<Database> _database = DatabaseHelper().database;
@@ -26,21 +24,15 @@ class Timestamp {
         _origin = origin ?? TimestampsOrigin.inputClick.index,
         _deleted = deleted;
 
-  int? get id => _id;
-
-  int get utcTimestamp => _utcTimestamp;
-
-  TimestampsOrigin get origin => TimestampsOrigin.values[_origin];
-
   bool get deleted => _deleted != 0;
 
   set deleted(bool deleted) => _deleted = deleted ? 1 : 0;
 
-  @override
-  String toString() {
-    return DateTime.fromMillisecondsSinceEpoch(_utcTimestamp, isUtc: true)
-        .toString();
-  }
+  int? get id => _id;
+
+  TimestampsOrigin get origin => TimestampsOrigin.values[_origin];
+
+  int get utcTimestamp => _utcTimestamp;
 
   Future<bool> save() async {
     if (_id == null) {
@@ -49,8 +41,21 @@ class Timestamp {
     return await _update();
   }
 
+  @override
+  String toString() {
+    return DateTime.fromMillisecondsSinceEpoch(_utcTimestamp, isUtc: true)
+        .toString();
+  }
+
   Future<bool> _insert() async {
     final database = await _database;
+
+    // Ensure there is no already a timestamp at the same date + time.
+    final result = await query(utcTimestamp: utcTimestamp);
+
+    if (result.isNotEmpty) {
+      throw AlreadySameTimestampException();
+    }
 
     try {
       _id = await database.insert(_tableName, _toMapForDB());
@@ -61,6 +66,13 @@ class Timestamp {
 
     return true;
   }
+
+  Map<String, dynamic> _toMapForDB() => {
+        _idColumnName: id,
+        _utcTimestampColumnName: utcTimestamp,
+        _originColumnName: _origin,
+        _deletedColumnName: _deleted,
+      };
 
   Future<bool> _update() async {
     final database = await _database;
@@ -80,19 +92,47 @@ class Timestamp {
     return true;
   }
 
-  Map<String, dynamic> _toMapForDB() => {
-        _idColumnName: id,
-        _utcTimestampColumnName: utcTimestamp,
-        _originColumnName: _origin,
-        _deletedColumnName: _deleted,
-      };
+  static int normalizeTimestamp(int timestamp) => (timestamp ~/ 60000) * 60000;
 
-  static Timestamp _fromMapToTimestamp(Map<String, Object?> map) => Timestamp(
-        id: int.parse(map[_idColumnName] as String),
-        utcTimestamp: int.parse(map[_utcTimestampColumnName] as String),
-        origin: int.parse(map[_originColumnName] as String),
-        deleted: int.parse(map[_deletedColumnName] as String),
-      );
+  static Future<void> onCreate(Database database, int version) async {
+    database.execute('DROP TABLE IF EXISTS $_tableName');
+    database.execute('''CREATE TABLE $_tableName (
+        $_idColumnName INTEGER PRIMARY KEY AUTOINCREMENT,
+        $_utcTimestampColumnName INTEGER NOT NULL,
+        $_originColumnName INTEGER NOT NULL,
+        $_deletedColumnName INTEGER NOT NULL
+    )''');
+  }
+
+  static Future<void> onUpdate(
+      Database database, int oldVersion, int newVersion) async {}
+
+  static Future<List<Timestamp>> queryBackup() async =>
+      await query(orderBy: 'id', orderDesc: false);
+
+  static void onBackup(XmlBuilder builder, timestamps) {
+    builder.element('timestamps', nest: () {
+      _buildBackupItems(builder, timestamps);
+    });
+  }
+
+  static void _buildBackupItems(
+      XmlBuilder builder, List<Timestamp> timestamps) {
+    for (var timestamp in timestamps) {
+      builder.element('timestamp', nest: () {
+        builder.attribute('id', timestamp.id.toString());
+        builder.element('utcTimestamp', nest: () {
+          builder.text(timestamp.utcTimestamp.toString());
+        });
+        builder.element('origin', nest: () {
+          builder.text(timestamp.origin.index);
+        });
+        builder.element('deleted', nest: () {
+          builder.text(timestamp.deleted.toString());
+        });
+      });
+    }
+  }
 
   static Future<List<Timestamp>> query({
     int? id,
@@ -101,6 +141,10 @@ class Timestamp {
     int? utcTimestampMax,
     Object? origin,
     Object? deleted,
+    int? limit,
+    bool orderDesc = true,
+    String? orderBy =
+        _utcTimestampColumnName, // TODO: Create enum to really be column name agnostic
   }) async {
     if ((utcTimestamp != null) &&
         (utcTimestampMin != null || utcTimestampMax != null)) {
@@ -120,15 +164,15 @@ class Timestamp {
     }
     if (utcTimestamp != null) {
       whereParts.add('$_utcTimestampColumnName = ?');
-      values.add(utcTimestamp);
+      values.add(normalizeTimestamp(utcTimestamp));
     }
     if (utcTimestampMin != null) {
       whereParts.add('$_utcTimestampColumnName >= ?');
-      values.add(utcTimestampMin);
+      values.add(normalizeTimestamp(utcTimestampMin));
     }
     if (utcTimestampMax != null) {
       whereParts.add('$_utcTimestampColumnName <= ?');
-      values.add(utcTimestampMax);
+      values.add(normalizeTimestamp(utcTimestampMax));
     }
     if (origin is int || origin is TimestampsOrigin) {
       whereParts.add('$_originColumnName = ?');
@@ -148,7 +192,10 @@ class Timestamp {
     final where =
         whereParts.isNotEmpty ? ' WHERE ${whereParts.join(' AND ')}' : '';
 
-    var query = 'SELECT * FROM $_tableName$where';
+    final order = orderDesc ? 'DESC' : 'ASC';
+    final limitStr = (limit != null && limit > 0) ? ' LIMIT $limit' : '';
+    final query =
+        'SELECT * FROM $_tableName$where ORDER BY $orderBy $order$limitStr';
     final records = await database.rawQuery(query, values.toList());
 
     for (var record in records) {
@@ -158,16 +205,15 @@ class Timestamp {
     return result;
   }
 
-  static Future<void> onCreate(Database database, int version) async {
-    database.execute('DROP TABLE IF EXISTS $_tableName');
-    database.execute('''CREATE TABLE $_tableName (
-        $_idColumnName INTEGER PRIMARY KEY AUTOINCREMENT,
-        $_utcTimestampColumnName INTEGER NOT NULL,
-        $_originColumnName INTEGER NOT NULL,
-        $_deletedColumnName INTEGER NOT NULL
-    )''');
-  }
+  static Timestamp _fromMapToTimestamp(Map<String, Object?> map) => Timestamp(
+        id: map[_idColumnName] as int,
+        utcTimestamp: map[_utcTimestampColumnName] as int,
+        origin: map[_originColumnName] as int,
+        deleted: map[_deletedColumnName] as int,
+      );
+}
 
-  static Future<void> onUpdate(
-      Database database, int oldVersion, int newVersion) async {}
+enum TimestampsOrigin {
+  inputClick,
+  inputManual,
 }

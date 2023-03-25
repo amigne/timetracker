@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:timetracker/timestamps/timestamp_extension.dart';
 
-import '../db/timestamps.dart';
 import '../reports/share_excel.dart';
 
 class ReportPage extends StatefulWidget {
@@ -52,8 +52,8 @@ class _ReportPageState extends State<ReportPage> {
     if (!mounted) return;
 
     if (!_set) {
-      var dropdownList = await getListOfMonths();
-      var dropdownValue = dropdownList[0];
+      final dropdownList = await TimestampExtension.getListOfMonths();
+      final dropdownValue = dropdownList[0];
 
       _set = true;
       setState(() {

@@ -13,7 +13,6 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    // updateState();
   }
 
   @override
@@ -27,5 +26,10 @@ class _SettingsPageState extends State<SettingsPage> {
         )
       ],
     );
+  }
+
+  void backupAndShareDB() async {
+    await backup();
+    await shareDB();
   }
 }

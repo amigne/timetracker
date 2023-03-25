@@ -1,4 +1,5 @@
 import 'package:sqflite/sqflite.dart';
+import 'package:xml/xml.dart';
 
 import '../db/database_helper.dart';
 
@@ -150,4 +151,24 @@ class Setting {
 
   static Future<void> onUpdate(
       Database database, int oldVersion, int newVersion) async {}
+
+  static void onBackup(XmlBuilder builder, settings) {
+    builder.element('settings', nest: () {
+      _buildBackupItems(builder, settings);
+    });
+  }
+
+  static void _buildBackupItems(XmlBuilder builder, List<Setting> settings) {
+    for (var setting in settings) {
+      builder.element('setting', nest: () {
+        builder.attribute('id', setting.id.toString());
+        builder.element('key', nest: () {
+          builder.text(setting.key);
+        });
+        builder.element('value', nest: () {
+          builder.text(setting.value);
+        });
+      });
+    }
+  }
 }
