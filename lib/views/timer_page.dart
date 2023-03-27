@@ -138,7 +138,7 @@ class _TimerPageState extends State<TimerPage> {
   Future<int> getExpectedWorkDuration() async {
     final weekDay = await TimestampExtension.getWeekDayString();
 
-    return int.parse((await Setting.get('duration.$weekDay')) ?? '0');
+    return int.parse((await Setting.get('duration.due.$weekDay')) ?? '0');
   }
 
   // TODO: Move method to dedicated class
