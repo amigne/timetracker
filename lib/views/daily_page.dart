@@ -63,8 +63,9 @@ class _DailyPageState extends State<DailyPage> {
   changeDateMaker(context) {
     return () async {
       // If initialization has not completed, let's return until values are set.
-      if (_selectedDate == null || _startDate == null || _endDate == null)
+      if (_selectedDate == null || _startDate == null || _endDate == null) {
         return;
+      }
 
       final DateTime? pickedDate = await showDatePicker(
           context: context,
@@ -105,7 +106,8 @@ class _DailyPageState extends State<DailyPage> {
   void updateState() async {
     if (!mounted) return;
 
-    final startDate = _startDate ?? await SettingExtension.startDate();
+    final startDate =
+        _startDate ?? (await SettingExtension.startDate()).toLocal();
     final endDate = _endDate ?? await DateTimeExtension.tzNow();
     final selectedDate = _selectedDate ?? await DateTimeExtension.tzNow();
     final selectedDateStr =

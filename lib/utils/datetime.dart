@@ -9,6 +9,8 @@ String format4digits(int n) => n.toString().padLeft(4, '0');
 String formatDate(int year, int month, int day) =>
     '$year-${format2digits(month)}-${format2digits(day)}';
 
+String formatMonth(int year, int month) => '$year-${format2digits(month)}';
+
 String displayDuration(Duration duration) {
   final sign = duration.inMinutes < 0 ? '-' : '';
   final hours = format2digits(

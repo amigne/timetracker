@@ -5,7 +5,7 @@ import '../timestamps/datetime_extension.dart';
 
 extension SettingExtension on Setting {
   static Future<DateTime> startDate() async {
-    final settingStartTimestamp = await Setting.get('general.startTimestamp');
+    final settingStartTimestamp = await Setting.get('general.startUtcTimestamp');
 
     late int startTimestamp;
     if (settingStartTimestamp != null) {

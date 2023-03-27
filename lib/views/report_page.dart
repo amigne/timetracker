@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:timetracker/timestamps/timestamp_extension.dart';
+
+import 'package:month_picker_dialog/month_picker_dialog.dart';
 
 import '../reports/share_excel.dart';
+import '../settings/setting_extension.dart';
+import '../timestamps/datetime_extension.dart';
+import '../utils/datetime.dart';
 
 class ReportPage extends StatefulWidget {
   const ReportPage({Key? key}) : super(key: key);
@@ -11,9 +15,10 @@ class ReportPage extends StatefulWidget {
 }
 
 class _ReportPageState extends State<ReportPage> {
-  bool _set = false;
-  List<String> _dropdownList = [];
-  String _dropdownValue = '';
+  DateTime? _startMonth;
+  DateTime? _endMonth;
+  DateTime? _selectedMonth;
+  String _selectedMonthStr = '';
 
   @override
   void initState() {
@@ -26,22 +31,20 @@ class _ReportPageState extends State<ReportPage> {
     return Column(
       children: [
         const Text('Period'),
-        DropdownButton<String>(
-          value: _dropdownValue,
-          items: _dropdownList.map<DropdownMenuItem<String>>((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Text(value),
-            );
-          }).toList(),
-          onChanged: (String? value) {
-            setState(() {
-              _dropdownValue = value!;
-            });
-          },
+        GestureDetector(
+          onTap: changeMonthMaker(context),
+          child: Center(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(_selectedMonthStr),
+                const Icon(Icons.arrow_drop_down),
+              ],
+            ),
+          ),
         ),
         ElevatedButton(
-          onPressed: () => shareExcel(_dropdownValue),
+          onPressed: () => shareExcel(_selectedMonthStr),
           child: const Text('Share Excel'),
         )
       ],
@@ -51,15 +54,35 @@ class _ReportPageState extends State<ReportPage> {
   void updateState() async {
     if (!mounted) return;
 
-    if (!_set) {
-      final dropdownList = await TimestampExtension.getListOfMonths();
-      final dropdownValue = dropdownList[0];
+    final startMonth = _startMonth ?? (await SettingExtension.startDate()).toLocal();
+    final endMonth = _endMonth ?? await DateTimeExtension.tzNow();
+    final selectedMonth = _selectedMonth ?? await DateTimeExtension.tzNow();
+    final selectedMonthStr = formatMonth(selectedMonth.year, selectedMonth.month);
+    setState(() {
+      _startMonth = startMonth;
+      _endMonth = endMonth;
+      _selectedMonth = selectedMonth;
+      _selectedMonthStr = selectedMonthStr;
+    });
+  }
 
-      _set = true;
-      setState(() {
-        _dropdownList = dropdownList;
-        _dropdownValue = dropdownValue;
-      });
-    }
+  changeMonthMaker(context) {
+    return () async {
+      print('changeMonthMaker');
+      print(' - initialDate: $_selectedMonth');
+      print(' - firstDate: $_startMonth');
+      print(' - lastDate: $_endMonth');
+      final DateTime? pickedMonth = await showMonthPicker(
+        context: context,
+        initialDate: _selectedMonth,
+        firstDate: _startMonth,
+        lastDate: _endMonth,
+      );
+
+      if (pickedMonth == null) return;
+
+      _selectedMonth = pickedMonth;
+      updateState();
+    };
   }
 }
