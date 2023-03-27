@@ -34,8 +34,8 @@ class Timestamp {
 
   int get utcTimestamp => _utcTimestamp;
 
-  Future<bool> save() async {
-    if (_id == null) {
+  Future<bool> save({bool forceInsert = false}) async {
+    if (_id == null || forceInsert) {
       return await _insert();
     }
     return await _update();
@@ -94,7 +94,8 @@ class Timestamp {
 
   static int normalizeTimestamp(int timestamp) => (timestamp ~/ 60000) * 60000;
 
-  static Future<void> onCreate(Database database, int version) async {
+  static Future<void> onCreate(Database database, int version,
+      {bool populate = true}) async {
     database.execute('DROP TABLE IF EXISTS $_tableName');
     database.execute('''CREATE TABLE $_tableName (
         $_idColumnName INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -211,6 +212,36 @@ class Timestamp {
         origin: map[_originColumnName] as int,
         deleted: map[_deletedColumnName] as int,
       );
+
+  static Future<void> onRestore(XmlElement xmlElement) async {
+    final database = await _database;
+
+    await onCreate(database, -1, populate: false);
+    final xmlTimestamps = xmlElement.findAllElements('timestamp');
+    for (var xmlTimestamp in xmlTimestamps) {
+      final String? idAttribute = xmlTimestamp.getAttribute('id');
+
+      final utcTimestampElement = xmlTimestamp.getElement('utcTimestamp');
+      final originElement = xmlTimestamp.getElement('origin');
+      final deletedElement = xmlTimestamp.getElement('deleted');
+
+      if (idAttribute == null ||
+          utcTimestampElement == null ||
+          originElement == null ||
+          deletedElement == null) {
+        throw InvalidDatabaseBackupFile();
+      }
+
+      final int id = int.parse(idAttribute);
+      final int utcTimestamp = int.parse(utcTimestampElement.text);
+      final int origin = int.parse(originElement.text);
+      final int deleted = deletedElement.text.toLowerCase() == 'true' ? 1 : 0;
+
+      final timestamp = Timestamp(
+          id: id, utcTimestamp: utcTimestamp, origin: origin, deleted: deleted);
+      await timestamp.save(forceInsert: true);
+    }
+  }
 }
 
 enum TimestampsOrigin {

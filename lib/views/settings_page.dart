@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../settings/backup.dart';
@@ -21,9 +22,13 @@ class _SettingsPageState extends State<SettingsPage> {
       children: [
         const Text('Backup'),
         ElevatedButton(
-          onPressed: () => backupAndShareDB(),
+          onPressed: backupAndShareDB,
           child: const Text('Backup & share DB'),
-        )
+        ),
+        ElevatedButton(
+          onPressed: importDB,
+          child: const Text('Import DB'),
+        ),
       ],
     );
   }
@@ -31,5 +36,17 @@ class _SettingsPageState extends State<SettingsPage> {
   void backupAndShareDB() async {
     await backup();
     await shareDB();
+  }
+
+  void importDB() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: [
+        'xml',
+      ],
+    );
+    if (result != null) {
+      await restore(result.files.single.path!);
+    }
   }
 }

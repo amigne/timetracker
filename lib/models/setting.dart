@@ -25,8 +25,8 @@ class Setting {
   @override
   String toString() => '$key: $value';
 
-  Future<bool> save() async {
-    if (_id == null) {
+  Future<bool> save({bool forceInsert = false}) async {
+    if (_id == null || forceInsert) {
       return await _insert();
     }
     return await _update();
@@ -119,7 +119,8 @@ class Setting {
     return result;
   }
 
-  static Future<void> onCreate(Database database, int version) async {
+  static Future<void> onCreate(Database database, int version,
+      {bool populate = true}) async {
     database.execute('DROP TABLE IF EXISTS $_tableName');
     database.execute('''CREATE TABLE $_tableName (
         $_idColumnName INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -128,25 +129,28 @@ class Setting {
         UNIQUE($_keyColumnName)
     )''');
 
-    final now = DateTime.now();
-    final todayTimestamp =
-        DateTime.utc(now.year, now.month, now.day).millisecondsSinceEpoch;
-    Setting(key: 'general.startUtcTimestamp', value: '$todayTimestamp').save();
-    Setting(key: 'general.timeZone', value: 'Europe/Zurich').save();
-    Setting(key: 'duration.due.monday', value: '492').save();
-    Setting(key: 'duration.due.tuesday', value: '492').save();
-    Setting(key: 'duration.due.wednesday', value: '492').save();
-    Setting(key: 'duration.due.thursday', value: '492').save();
-    Setting(key: 'duration.due.friday', value: '492').save();
-    Setting(key: 'duration.due.saturday', value: '0').save();
-    Setting(key: 'duration.due.sunday', value: '0').save();
-    Setting(key: 'duration.max.monday', value: '660').save();
-    Setting(key: 'duration.max.tuesday', value: '660').save();
-    Setting(key: 'duration.max.wednesday', value: '660').save();
-    Setting(key: 'duration.max.thursday', value: '660').save();
-    Setting(key: 'duration.max.friday', value: '660').save();
-    Setting(key: 'duration.max.saturday', value: '0').save();
-    Setting(key: 'duration.max.sunday', value: '0').save();
+    if (populate) {
+      final now = DateTime.now();
+      final todayTimestamp =
+          DateTime.utc(now.year, now.month, now.day).millisecondsSinceEpoch;
+      Setting(key: 'general.startUtcTimestamp', value: '$todayTimestamp')
+          .save();
+      Setting(key: 'general.timeZone', value: 'Europe/Zurich').save();
+      Setting(key: 'duration.due.monday', value: '492').save();
+      Setting(key: 'duration.due.tuesday', value: '492').save();
+      Setting(key: 'duration.due.wednesday', value: '492').save();
+      Setting(key: 'duration.due.thursday', value: '492').save();
+      Setting(key: 'duration.due.friday', value: '492').save();
+      Setting(key: 'duration.due.saturday', value: '0').save();
+      Setting(key: 'duration.due.sunday', value: '0').save();
+      Setting(key: 'duration.max.monday', value: '660').save();
+      Setting(key: 'duration.max.tuesday', value: '660').save();
+      Setting(key: 'duration.max.wednesday', value: '660').save();
+      Setting(key: 'duration.max.thursday', value: '660').save();
+      Setting(key: 'duration.max.friday', value: '660').save();
+      Setting(key: 'duration.max.saturday', value: '0').save();
+      Setting(key: 'duration.max.sunday', value: '0').save();
+    }
   }
 
   static Future<void> onUpdate(
@@ -169,6 +173,29 @@ class Setting {
           builder.text(setting.value);
         });
       });
+    }
+  }
+
+  static Future<void> onRestore(XmlElement xmlElement) async {
+    final database = await _database;
+
+    await onCreate(database, -1, populate: false);
+    final xmlSettings = xmlElement.findAllElements('setting');
+    for (var xmlSetting in xmlSettings) {
+      final String? idAttribute = xmlSetting.getAttribute('id');
+      final keyElement = xmlSetting.getElement('key');
+      final valueElement = xmlSetting.getElement('value');
+
+      if (idAttribute == null || keyElement == null || valueElement == null) {
+        throw InvalidDatabaseBackupFile();
+      }
+
+      final int id = int.parse(idAttribute);
+      final key = keyElement.text;
+      final value = valueElement.text;
+
+      final setting = Setting(id: id, key: key, value: value);
+      await setting.save(forceInsert: true);
     }
   }
 }

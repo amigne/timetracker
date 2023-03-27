@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:xml/xml.dart';
 
 import '../db/database_helper.dart';
 
@@ -20,4 +21,10 @@ Future<void> backup() async {
 Future<void> shareDB() async {
   Share.shareXFiles([XFile(await backupFilePath())],
       text: 'XML backup for Time Tracker');
+}
+
+Future<void> restore(String filePath) async {
+  final file = File(filePath);
+  final xmlDocument = XmlDocument.parse(file.readAsStringSync());
+  await DatabaseHelper.restore(xmlDocument);
 }

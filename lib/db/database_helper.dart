@@ -16,6 +16,10 @@ class DatabaseHelper {
     [Setting.query, Setting.onBackup],
     [Timestamp.queryBackup, Timestamp.onBackup]
   ];
+  static const Map<String, Function> _onRestoreModels = {
+    'settings': Setting.onRestore,
+    'timestamps': Timestamp.onRestore,
+  };
 
   static Database? _database;
 
@@ -62,4 +66,23 @@ class DatabaseHelper {
 
     return builder.buildDocument();
   }
+
+  static Future<void> restore(XmlDocument xmlDocument) async {
+    final root = xmlDocument.getElement('timetracker');
+
+    if (root == null) {
+      throw InvalidDatabaseBackupFile();
+    }
+
+    for (var model in _onRestoreModels.keys) {
+      final element = root.getElement(model);
+      if (element == null) {
+        continue;
+      }
+
+      await (_onRestoreModels[model] as Function)(element);
+    }
+  }
 }
+
+class InvalidDatabaseBackupFile implements Exception {}

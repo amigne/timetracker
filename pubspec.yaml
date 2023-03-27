@@ -30,6 +30,7 @@ dependencies:
     git:
       url: https://github.com/amigne/excel.git
       ref: borders
+  file_picker: ^5.2.6
   path:
   path_provider:
   percent_indicator:
