@@ -25,7 +25,6 @@ dependencies:
     sdk: flutter
   flutter_icons:
     git: https://github.com/jibiel/flutter-icons
-  date_time_picker: ^2.1.0
   excel:
     git:
       url: https://github.com/amigne/excel.git
@@ -39,7 +38,6 @@ dependencies:
   sqflite_common_ffi:
   sqlite3_flutter_libs:
   share_plus: ^6.3.1
-  syncfusion_flutter_datepicker: ^20.4.54
   timezone:
   xml:
 

@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:date_time_picker/date_time_picker.dart';
-import 'package:syncfusion_flutter_datepicker/datepicker.dart';
-
 import '../models/timestamp.dart';
 import '../settings/setting_extension.dart';
 import '../timestamps/datetime_comparison.dart';
@@ -23,7 +20,6 @@ class _DailyPageState extends State<DailyPage> {
   DateTime? _selectedDate;
   String _selectedDateStr = '';
   List<TableRow> _tableRows = [];
-  String _selectedTimeStr = '';
 
   @override
   void initState() {
@@ -66,92 +62,44 @@ class _DailyPageState extends State<DailyPage> {
 
   changeDateMaker(context) {
     return () async {
-      showDialog<String>(
-        context: context,
-        builder: (BuildContext context) => AlertDialog(
-          title: const Text('Select the date'),
-          content: SizedBox(
-            height: 350,
-            width: 350,
-            child: Card(
-              child: SfDateRangePicker(
-                onSelectionChanged: dateChanged,
-                selectionMode: DateRangePickerSelectionMode.single,
-                initialSelectedDate: _selectedDate,
-                minDate: _startDate,
-                maxDate: _endDate,
-              ),
-            ),
-          ),
-          actions: const <Widget>[],
-        ),
-      );
+      // If initialization has not completed, let's return until values are set.
+      if (_selectedDate == null || _startDate == null || _endDate == null)
+        return;
+
+      final DateTime? pickedDate = await showDatePicker(
+          context: context,
+          initialDate: _selectedDate!,
+          firstDate: _startDate!,
+          lastDate: _endDate!);
+
+      if (pickedDate == null) return;
+
+      _selectedDate = pickedDate;
+      updateState();
     };
   }
 
   addManualTimestampMaker(context) {
-    _selectedTimeStr = '';
     return () async {
-      showDialog<String>(
-        context: context,
-        builder: (BuildContext context) => AlertDialog(
-          title: const Text('Add a new timestamp'),
-          content: SizedBox(
-            height: 350,
-            width: 350,
-            child: Card(
-              child: DateTimePicker(
-                type: DateTimePickerType.time,
-                use24HourFormat: true,
-                initialValue: '00:00',
-                timeLabelText: 'Time',
-                onChanged: (val) => _selectedTimeStr = val,
-              ),
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'Cancel'),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: addNewTimestampMaker(context),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-    };
-  }
+      final TimeOfDay? pickedTime = await showTimePicker(
+          context: context, initialTime: const TimeOfDay(hour: 0, minute: 0));
 
-  addNewTimestampMaker(context) {
-    return () async {
-      final selectedTimeStr = _selectedTimeStr;
-      final timeParts = selectedTimeStr.split(':');
+      if (pickedTime == null) return;
+
       final year = _selectedDate!.year;
       final month = _selectedDate!.month;
       final day = _selectedDate!.day;
-      final hours = int.parse(timeParts[0]);
-      final minutes = int.parse(timeParts[1]);
+      final hours = pickedTime.hour;
+      final minutes = pickedTime.minute;
 
       final dateTime = DateTime(year, month, day, hours, minutes);
-
       if (dateTime <= DateTime.now()) {
         await TimestampExtension.addTimestamp(
             timestamp: dateTime.millisecondsSinceEpoch,
             origin: TimestampsOrigin.inputManual);
       }
-
-      _selectedTimeStr = '';
-      Navigator.pop(context);
       updateState();
     };
-  }
-
-  void dateChanged(DateRangePickerSelectionChangedArgs args) {
-    Navigator.pop(context);
-    _selectedDate = args.value;
-    updateState();
   }
 
   void updateState() async {
@@ -172,9 +120,6 @@ class _DailyPageState extends State<DailyPage> {
     final List<TableRow> tableRows = [];
     var count = 0;
     for (var timestamp in timestamps) {
-      /*final timestamp = Timestamp(ts['dateTime'],
-          id: ts['id'], origin: ts['origin'], deleted: ts['deleted'] != 0);*/
-
       var style = const TextStyle();
       var icon =
           count % 2 == 0 ? const Icon(Icons.input) : const Icon(Icons.output);
