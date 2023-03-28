@@ -1,4 +1,8 @@
+import 'dart:io';
+
+import 'package:flutter_native_timezone/flutter_native_timezone.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:timezone/timezone.dart' as tz;
 import 'package:xml/xml.dart';
 
 import '../db/database_helper.dart';
@@ -131,11 +135,16 @@ class Setting {
 
     if (populate) {
       final now = DateTime.now();
-      final todayTimestamp =
-          DateTime.utc(now.year, now.month, now.day).millisecondsSinceEpoch;
+      final timeZone = (Platform.isAndroid || Platform.isIOS)
+          ? await FlutterNativeTimezone.getLocalTimezone()
+          : 'UTC';
+      final appTz = tz.getLocation(timeZone);
+      final todayTimestamp = tz.TZDateTime(appTz, now.year, now.month, now.day)
+          .toUtc()
+          .millisecondsSinceEpoch;
+      Setting(key: 'general.timeZone', value: timeZone).save();
       Setting(key: 'general.startUtcTimestamp', value: '$todayTimestamp')
           .save();
-      Setting(key: 'general.timeZone', value: 'Europe/Zurich').save();
       Setting(key: 'duration.due.monday', value: '492').save();
       Setting(key: 'duration.due.tuesday', value: '492').save();
       Setting(key: 'duration.due.wednesday', value: '492').save();

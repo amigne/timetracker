@@ -68,10 +68,6 @@ class _ReportPageState extends State<ReportPage> {
 
   changeMonthMaker(context) {
     return () async {
-      print('changeMonthMaker');
-      print(' - initialDate: $_selectedMonth');
-      print(' - firstDate: $_startMonth');
-      print(' - lastDate: $_endMonth');
       final DateTime? pickedMonth = await showMonthPicker(
         context: context,
         initialDate: _selectedMonth,
