@@ -1,7 +1,10 @@
+import 'dart:core';
+
 import 'package:flutter/material.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:timetracker/reports/share_excel.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../models/setting.dart';
@@ -25,11 +28,13 @@ class _SettingsPageState extends State<SettingsPage> {
     buildSignature: 'Unknown',
     installerStore: 'Unknown',
   );
+
   List<DropdownMenuItem> _timeZoneList = [];
   String _timeZone = '';
   DateTime? _startDate;
   String _startDateStr = '';
-
+  List<TableRow> _workingDurationTableRows = [];
+  BuildContext? _context;
 
   @override
   void initState() {
@@ -47,6 +52,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    _context = context;
     return ListView(
       children: [
         ListTile(
@@ -82,6 +88,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 ],
               ),
             ),
+          ),
+        ),
+        ListTile(
+          title: const Center(child: Text('Working durations')),
+          subtitle: Table(
+            children: _workingDurationTableRows,
           ),
         ),
         _infoTile('App name', _packageInfo.appName),
@@ -144,14 +156,152 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) return;
 
     final timeZone = (await Setting.get('general.timeZone')) ?? 'UTC';
-    final startDate = tz.TZDateTime.from(await SettingExtension.startDate(), tz.getLocation(timeZone));
-    final startDateStr = formatDate(startDate.year, startDate.month, startDate.day);
+    final startDate = tz.TZDateTime.from(
+        await SettingExtension.startDate(), tz.getLocation(timeZone));
+    final startDateStr =
+        formatDate(startDate.year, startDate.month, startDate.day);
+
+    final List<TableRow> workingDurationTableRows = [];
+
+    workingDurationTableRows.add(TableRow(
+      children: [
+        Container(),
+        Container(margin: const EdgeInsets.all(5.0), child: const Text('due')),
+        Container(margin: const EdgeInsets.all(5.0), child: const Text('max')),
+      ],
+    ));
+
+    const weekdays = [
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+      'sunday'
+    ];
+    for (var weekday in weekdays) {
+      final due =
+          int.parse((await Setting.get('duration.due.$weekday')) ?? '0');
+      final max =
+          int.parse((await Setting.get('duration.max.$weekday')) ?? '0');
+      final dueStr = displayDuration(Duration(minutes: due));
+      final maxStr = displayDuration(Duration(minutes: max));
+
+      workingDurationTableRows.add(TableRow(
+        children: [
+          Container(
+              margin: const EdgeInsets.all(5.0),
+              child: Text(weekday.capitalize())),
+          GestureDetector(
+            onTap: _updateDailyDurationMaker(due, 'due', weekday),
+            child: Container(
+                margin: const EdgeInsets.all(5.0), child: Text(dueStr)),
+          ),
+          GestureDetector(
+            onTap: _updateDailyDurationMaker(max, 'max', weekday),
+            child: Container(
+                margin: const EdgeInsets.all(5.0), child: Text(maxStr)),
+          ),
+        ],
+      ));
+    }
 
     setState(() {
       _timeZone = timeZone;
       _startDate = startDate;
       _startDateStr = startDateStr;
+      _workingDurationTableRows = workingDurationTableRows;
     });
+  }
+
+  _updateDailyDurationMaker(int minutes, String typeDuration, String weekDay) {
+    return () async {
+      if (_context == null) return;
+
+      final TimeOfDay? pickedDuration = await showTimePicker(
+        context: _context!,
+        helpText: 'Select $typeDuration duration for ${weekDay}s',
+        initialTime: TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60),
+        builder: (BuildContext context, Widget? child) {
+          return MediaQuery(
+            data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+            child: child!,
+          );
+        },
+      );
+
+      if (pickedDuration == null) return;
+
+      final newDuration = pickedDuration.hour * 60 + pickedDuration.minute;
+
+      if (typeDuration == 'max') {
+        final due = int.parse(
+            (await Setting.get('duration.due.$weekDay')) ?? '0');
+        if (newDuration < due) {
+          await showDialog(
+              context: _context!,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: const Text('Invalid max duration'),
+                  content: Text(
+                      'The maximum duration for a given day ($weekDay) '
+                          'must be equal or higher than the due duration for that day.'),
+                  actions: <Widget>[
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        textStyle: Theme
+                            .of(context)
+                            .textTheme
+                            .labelLarge,
+                      ),
+                      child: const Text('OK'),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                    )
+                  ],
+                );
+              }
+          );
+          return;
+        }
+      }
+      if (typeDuration == 'due') {
+        final max = int.parse((await Setting.get('duration.max.$weekDay')) ?? '0');
+        if (newDuration > max) {
+          await showDialog(
+              context: _context!,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: const Text('Invalid due duration'),
+                  content: Text('The due duration for a given day ($weekDay) '
+                      'must be smaller or equal to the max duration for that day.'),
+                  actions: <Widget>[
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        textStyle: Theme.of(context).textTheme.labelLarge,
+                      ),
+                      child: const Text('OK'),
+                      onPressed: () { Navigator.of(context).pop(); },
+                    )
+                  ],
+                );
+              }
+          );
+          return;
+        }
+      }
+
+      final durationResult = await Setting.query(key: 'duration.$typeDuration.$weekDay');
+      final durationSetting = durationResult.isNotEmpty
+          ? durationResult[0]
+          : Setting(key: 'duration.$typeDuration.$weekDay', value: '');
+      durationSetting.value = newDuration.toString();
+      durationSetting.save();
+
+      updateState();
+    };
   }
 
   _updateTimeZoneMaker() {
@@ -183,11 +333,13 @@ class _SettingsPageState extends State<SettingsPage> {
 
       if (pickedDate == null) return;
 
-      final startDateResult = await Setting.query(key: 'general.startUtcTimestamp');
+      final startDateResult =
+          await Setting.query(key: 'general.startUtcTimestamp');
       final startDateSetting = startDateResult.isNotEmpty
           ? startDateResult[0]
           : Setting(key: 'general.startUtcTimestamp', value: '');
-      startDateSetting.value = pickedDate.toUtc().millisecondsSinceEpoch.toString();
+      startDateSetting.value =
+          pickedDate.toUtc().millisecondsSinceEpoch.toString();
       startDateSetting.save();
 
       updateState();
